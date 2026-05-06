@@ -25,6 +25,8 @@ from github_helper import PullRequest, get_pull_request, post_pull_request_comme
 class WorkflowState(TypedDict):
     repository: str
     pull_request_id: int
+    github_access_token: str
+    dry_run: bool
 
     working_directory: Path
     pull_request: PullRequest
@@ -51,6 +53,7 @@ class AnalyzeCodeTask(TypedDict):
     working_directory: Path
     pull_request: PullRequest
     commits: List[Commit]
+    github_access_token: str
 
 
 def create_workflow(settings: AppSettings) -> CompiledStateGraph[WorkflowState, WorkflowContext]:
@@ -86,7 +89,10 @@ def create_workflow(settings: AppSettings) -> CompiledStateGraph[WorkflowState, 
 
 def _load_pull_request(state: WorkflowState, runtime: Runtime[WorkflowContext]):
     print(f"Loading pull request #{state['pull_request_id']} from repository {state['repository']}...")
-    pull_request = get_pull_request(state["repository"], state["pull_request_id"], runtime.context["github_access_token"])
+    github_token = state.get("github_access_token")
+    if not github_token:
+        raise ValueError("github_access_token not provided in state")
+    pull_request = get_pull_request(state["repository"], state["pull_request_id"], github_token)
 
     return { "pull_request": pull_request }
 
@@ -108,21 +114,30 @@ def _clone_repository(state: WorkflowState, runtime: Runtime[WorkflowContext]):
                 raise
 
     print(f"Cloning repository {state['repository']} for pull request #{state['pull_request_id']}...")
-    working_directory = clone_github_repository(state["repository"], destination, runtime.context["github_access_token"])
+    github_token = state.get("github_access_token")
+    if not github_token:
+        raise ValueError("github_access_token not provided in state")
+    working_directory = clone_github_repository(state["repository"], destination, github_token)
     print("Repository cloned successfully.")
 
     return { "working_directory": working_directory }
 
 def _get_commits(state: WorkflowState, runtime: Runtime[WorkflowContext]):
     print(f"Getting commits...")
-    commits = get_commits(state["working_directory"], state["pull_request"].head_branch, state["pull_request"].base_branch, github_access_token=runtime.context["github_access_token"])
+    github_token = state.get("github_access_token")
+    if not github_token:
+        raise ValueError("github_access_token not provided in state")
+    commits = get_commits(state["working_directory"], state["pull_request"].head_branch, state["pull_request"].base_branch, github_access_token=github_token)
 
     return { "commits": commits }
 
 
 def _get_changed_files(state: WorkflowState, runtime: Runtime[WorkflowContext]):
     print(f"Getting changed files...")
-    changed_files = get_changed_files(state["working_directory"], state["pull_request"].head_branch, state["pull_request"].base_branch, github_access_token=runtime.context["github_access_token"])
+    github_token = state.get("github_access_token")
+    if not github_token:
+        raise ValueError("github_access_token not provided in state")
+    changed_files = get_changed_files(state["working_directory"], state["pull_request"].head_branch, state["pull_request"].base_branch, github_access_token=github_token)
 
     return { "changed_files": changed_files }
 
@@ -200,7 +215,10 @@ Review rules:
             Args:
                 file_path: path to the file relative to repo root.
             """
-            return get_change(task["working_directory"], task["pull_request"].head_branch, task["pull_request"].base_branch, file_path, github_access_token=runtime.context["github_access_token"])
+            github_token = task.get("github_access_token")
+            if not github_token:
+                raise ValueError("github_access_token not provided in task")
+            return get_change(task["working_directory"], task["pull_request"].head_branch, task["pull_request"].base_branch, file_path, github_access_token=github_token)
 
         worker_agent = create_agent(
             model=model,
@@ -240,7 +258,8 @@ def _format_changed_files_for_prompt(changed_files: list[ChangedFile]) -> str:
 
 def _create_write_comments_node(model: ChatOpenAI):
     def _write_comments(state: WorkflowState, runtime: Runtime[WorkflowContext]):
-        if runtime.context.get("dry_run", False):
+        dry_run = state.get("dry_run", False)
+        if dry_run:
             print("Dry run enabled: skipping PR comment posting.")
             print("Aggregated analysis results:\n")
             print('\n\n'.join(state['analysis_results']))
@@ -273,7 +292,10 @@ Guidelines:
 
             Use this for overall review summaries or top-level remarks.
             """
-            post_pull_request_comment(state["repository"], state["pull_request_id"], content, runtime.context["github_access_token"])
+            github_token = state.get("github_access_token")
+            if not github_token:
+                raise ValueError("github_access_token not provided in state")
+            post_pull_request_comment(state["repository"], state["pull_request_id"], content, github_token)
 
         aggregator_agent = create_agent(
             model=model, # pyright: ignore[reportArgumentType]
@@ -299,7 +321,7 @@ def _delegate_work(state: WorkflowState):
     if not state["delegation_matrix"]:
         return END
     
-    return [Send("analyze", { "group": group, "working_directory": state["working_directory"], "pull_request": state["pull_request"], "commits": state["commits"] }) for group in state["delegation_matrix"]]
+    return [Send("analyze", { "group": group, "working_directory": state["working_directory"], "pull_request": state["pull_request"], "commits": state["commits"], "github_access_token": state.get("github_access_token") }) for group in state["delegation_matrix"]]
 
 
 def _handle_remove_readonly(retry, target: str, exc_info) -> None:
