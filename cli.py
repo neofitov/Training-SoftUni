@@ -1,6 +1,8 @@
 import argparse
+from dataclasses import asdict, is_dataclass
 import json
 import os
+from typing import Any, cast
 
 from config import AppSettings
 
@@ -40,6 +42,12 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _serialize_final_state(final_state: dict) -> dict:
+    def _to_jsonable(value: Any) -> Any:
+        if is_dataclass(value):
+            return asdict(cast(Any, value))
+
+        return value
+
     serialized = dict(final_state)
     working_directory = serialized.get("working_directory")
     if working_directory is not None:
@@ -47,15 +55,15 @@ def _serialize_final_state(final_state: dict) -> dict:
 
     pull_request = serialized.get("pull_request")
     if pull_request is not None:
-        serialized["pull_request"] = pull_request.__dict__
+        serialized["pull_request"] = _to_jsonable(pull_request)
 
     commits = serialized.get("commits")
     if commits is not None:
-        serialized["commits"] = [commit.__dict__ for commit in commits]
+        serialized["commits"] = [_to_jsonable(commit) for commit in commits]
 
     changed_files = serialized.get("changed_files")
     if changed_files is not None:
-        serialized["changed_files"] = [changed_file.__dict__ for changed_file in changed_files]
+        serialized["changed_files"] = [_to_jsonable(changed_file) for changed_file in changed_files]
 
     return serialized
 
