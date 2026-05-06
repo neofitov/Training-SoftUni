@@ -19,3 +19,6 @@ class AppSettings(BaseSettings):
     langsmith_endpoint: str | None = Field(default=None, alias="LANGSMITH_ENDPOINT")
 
     github_access_token: str = Field(alias="GITHUB_ACCESS_TOKEN")
+
+    review_repository: str = Field(default="neofitov/Training-SoftUni", alias="REVIEW_REPOSITORY")
+    review_pull_request_id: int = Field(default=3, alias="REVIEW_PULL_REQUEST_ID")
