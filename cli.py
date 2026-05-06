@@ -1,4 +1,4 @@
-﻿import argparse
+import argparse
 import json
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
