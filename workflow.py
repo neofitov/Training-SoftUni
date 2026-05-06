@@ -37,6 +37,7 @@ class WorkflowState(TypedDict):
 
 class WorkflowContext(TypedDict):
     github_access_token: str
+    dry_run: bool
 
 
 class DelegationMatrix(BaseModel):
@@ -239,6 +240,12 @@ def _format_changed_files_for_prompt(changed_files: list[ChangedFile]) -> str:
 
 def _create_write_comments_node(model: ChatOpenAI):
     def _write_comments(state: WorkflowState, runtime: Runtime[WorkflowContext]):
+        if runtime.context.get("dry_run", False):
+            print("Dry run enabled: skipping PR comment posting.")
+            print("Aggregated analysis results:\n")
+            print('\n\n'.join(state['analysis_results']))
+            return
+
         system_prompt = """You are an expert code reviewer performing a pull-request review.
 
 You have access to tools to:
