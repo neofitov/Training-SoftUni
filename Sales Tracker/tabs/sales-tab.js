@@ -1,189 +1,160 @@
-import { addSale, editSale, removeSale } from "../shop.js";
+﻿import { shop } from "../shop.js";
 
-let selectedLocationIndex = 0;
-let editingSaleIndex = -1;
+let sortCol = null;
+let sortDir = 1;
+let filterProduct = '';
+let filterLocation = '';
+
+function flatSales(shop) {
+  const rows = [];
+  shop.locations.forEach((loc) => {
+    loc.sales.forEach((sale) => {
+      const [product, qty] = sale;
+      const price = shop.prices[product];
+      const revenue = price !== undefined ? price * qty : null;
+      rows.push({ product, location: loc.name, qty, price, revenue });
+    });
+  });
+  return rows;
+}
 
 function render(panel, shop) {
-  panel.innerHTML = "";
+  panel.innerHTML = '';
 
-  const h2 = document.createElement("h2");
-  h2.textContent = "Sales";
+  const h2 = document.createElement('h2');
+  h2.textContent = 'Sales';
   panel.appendChild(h2);
 
-  if (shop.locations.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "empty-message";
-    empty.textContent = "No locations yet. Add a location first.";
-    panel.appendChild(empty);
-    return;
+  const allSales = flatSales(shop);
+
+  // Filter bar
+  const filterBar = document.createElement('div');
+  filterBar.className = 'filter-bar';
+
+  const productSel = document.createElement('select');
+  productSel.className = 'select-input';
+  const allProdOpt = document.createElement('option');
+  allProdOpt.value = ''; allProdOpt.textContent = 'All products';
+  productSel.appendChild(allProdOpt);
+  [...new Set(allSales.map(r => r.product))].sort().forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p; opt.textContent = p; opt.selected = p === filterProduct;
+    productSel.appendChild(opt);
+  });
+  productSel.addEventListener('change', () => { filterProduct = productSel.value; render(panel, shop); });
+
+  const locationSel = document.createElement('select');
+  locationSel.className = 'select-input';
+  const allLocOpt = document.createElement('option');
+  allLocOpt.value = ''; allLocOpt.textContent = 'All locations';
+  locationSel.appendChild(allLocOpt);
+  shop.locations.forEach(loc => {
+    const opt = document.createElement('option');
+    opt.value = loc.name; opt.textContent = loc.name; opt.selected = loc.name === filterLocation;
+    locationSel.appendChild(opt);
+  });
+  locationSel.addEventListener('change', () => { filterLocation = locationSel.value; render(panel, shop); });
+
+  const clearBtn = document.createElement('button');
+  clearBtn.className = 'btn btn-sm';
+  clearBtn.textContent = 'Clear filters';
+  clearBtn.addEventListener('click', () => { filterProduct = ''; filterLocation = ''; render(panel, shop); });
+
+  filterBar.append(productSel, locationSel, clearBtn);
+  panel.appendChild(filterBar);
+
+  // Apply filter + sort
+  let rows = allSales;
+  if (filterProduct)  rows = rows.filter(r => r.product  === filterProduct);
+  if (filterLocation) rows = rows.filter(r => r.location === filterLocation);
+
+  if (sortCol) {
+    rows = [...rows].sort((a, b) => {
+      let av = a[sortCol], bv = b[sortCol];
+      const nullVal = sortDir === 1 ? Infinity : -Infinity;
+      if (av == null) av = nullVal;
+      if (bv == null) bv = nullVal;
+      if (typeof av === 'string') return sortDir * av.localeCompare(bv);
+      return sortDir * (av - bv);
+    });
   }
 
-  if (selectedLocationIndex >= shop.locations.length) selectedLocationIndex = 0;
+  // Table
+  const table = document.createElement('table');
+  table.className = 'data-table';
 
-  // Location selector
-  const selectorRow = document.createElement("div");
-  selectorRow.className = "selector-row";
-
-  const label = document.createElement("label");
-  label.htmlFor = "location-select";
-  label.textContent = "Location:";
-  label.className = "selector-label";
-
-  const select = document.createElement("select");
-  select.id = "location-select";
-  select.className = "select-input";
-
-  shop.locations.forEach((loc, i) => {
-    const opt = document.createElement("option");
-    opt.value = i;
-    opt.textContent = loc.name;
-    opt.selected = i === selectedLocationIndex;
-    select.appendChild(opt);
-  });
-
-  select.addEventListener("change", () => {
-    selectedLocationIndex = parseInt(select.value, 10);
-    editingSaleIndex = -1;
-    render(panel, shop);
-  });
-
-  selectorRow.append(label, select);
-  panel.appendChild(selectorRow);
-
-  const loc = shop.locations[selectedLocationIndex];
-
-  // Sales list
-  const list = document.createElement("ul");
-  list.className = "item-list";
-
-  if (loc.sales.length === 0) {
-    const empty = document.createElement("li");
-    empty.className = "item-row item-row--empty";
-    empty.textContent = "No sales for this location yet.";
-    list.appendChild(empty);
-  }
-
-  loc.sales.forEach((sale, saleIdx) => {
-    const [product, qty] = sale;
-    const row = document.createElement("li");
-    row.className = "item-row";
-
-    if (editingSaleIndex === saleIdx) {
-      const productSelect = document.createElement("select");
-      productSelect.className = "select-input";
-      shop.products.forEach((p) => {
-        const opt = document.createElement("option");
-        opt.value = p;
-        opt.textContent = p;
-        opt.selected = p === product;
-        productSelect.appendChild(opt);
-      });
-
-      const qtyInput = document.createElement("input");
-      qtyInput.type = "number";
-      qtyInput.min = "1";
-      qtyInput.value = qty;
-      qtyInput.className = "inline-input inline-input--narrow";
-
-      const saveBtn = document.createElement("button");
-      saveBtn.className = "btn btn-sm btn-primary";
-      saveBtn.textContent = "Save";
-
-      const cancelBtn = document.createElement("button");
-      cancelBtn.className = "btn btn-sm";
-      cancelBtn.textContent = "Cancel";
-
-      saveBtn.addEventListener("click", () => {
-        if (editSale(selectedLocationIndex, saleIdx, productSelect.value, qtyInput.value)) editingSaleIndex = -1;
-        render(panel, shop);
-      });
-      cancelBtn.addEventListener("click", () => {
-        editingSaleIndex = -1;
-        render(panel, shop);
-      });
-      qtyInput.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") saveBtn.click();
-        if (e.key === "Escape") cancelBtn.click();
-      });
-
-      row.append(productSelect, qtyInput, saveBtn, cancelBtn);
-    } else {
-      const productSpan = document.createElement("span");
-      productSpan.className = "item-name";
-      productSpan.textContent = product;
-
-      const qtySpan = document.createElement("span");
-      qtySpan.className = "item-qty";
-      qtySpan.textContent = `\u00d7 ${qty}`;
-
-      row.append(productSpan, qtySpan);
-
-      const price = shop.prices[product];
-      if (price !== undefined) {
-        const totalSpan = document.createElement("span");
-        totalSpan.className = "item-total";
-        totalSpan.textContent = `= ${(price * qty).toFixed(2)}`;
-        row.appendChild(totalSpan);
-      }
-
-      const editBtn = document.createElement("button");
-      editBtn.className = "btn btn-sm";
-      editBtn.textContent = "Edit";
-
-      const removeBtn = document.createElement("button");
-      removeBtn.className = "btn btn-sm btn-danger";
-      removeBtn.textContent = "Remove";
-
-      editBtn.addEventListener("click", () => {
-        editingSaleIndex = saleIdx;
-        render(panel, shop);
-      });
-      removeBtn.addEventListener("click", () => {
-        removeSale(selectedLocationIndex, saleIdx);
-        editingSaleIndex = -1;
-        render(panel, shop);
-      });
-
-      row.append(editBtn, removeBtn);
-    }
-
-    list.appendChild(row);
-  });
-
-  panel.appendChild(list);
-
-  // Add sale form
-  const addForm = document.createElement("div");
-  addForm.className = "add-form";
-
-  const productSelect = document.createElement("select");
-  productSelect.className = "select-input";
-  shop.products.forEach((p) => {
-    const opt = document.createElement("option");
-    opt.value = p;
-    opt.textContent = p;
-    productSelect.appendChild(opt);
-  });
-
-  const qtyInput = document.createElement("input");
-  qtyInput.type = "number";
-  qtyInput.min = "1";
-  qtyInput.value = "1";
-  qtyInput.placeholder = "Qty";
-  qtyInput.className = "form-input form-input--narrow";
-
-  const addBtn = document.createElement("button");
-  addBtn.className = "btn btn-primary";
-  addBtn.textContent = "Add Sale";
-
-  addBtn.addEventListener("click", () => {
-    if (addSale(selectedLocationIndex, productSelect.value, qtyInput.value)) {
+  const thead = document.createElement('thead');
+  const headerRow = document.createElement('tr');
+  [
+    { key: 'product',  label: 'Product'    },
+    { key: 'location', label: 'Location'   },
+    { key: 'qty',      label: 'Qty'        },
+    { key: 'price',    label: 'Unit Price' },
+    { key: 'revenue',  label: 'Revenue'    },
+  ].forEach(col => {
+    const th = document.createElement('th');
+    const btn = document.createElement('button');
+    const isActive = sortCol === col.key;
+    btn.className = 'sort-btn' + (isActive ? ' sort-btn--active' : '');
+    btn.textContent = col.label + (isActive ? (sortDir === 1 ? ' \u2191' : ' \u2193') : ' \u2195');
+    btn.addEventListener('click', () => {
+      sortDir = sortCol === col.key ? sortDir * -1 : 1;
+      sortCol = col.key;
       render(panel, shop);
-    }
+    });
+    th.appendChild(btn);
+    headerRow.appendChild(th);
   });
+  thead.appendChild(headerRow);
+  table.appendChild(thead);
 
-  addForm.append(productSelect, qtyInput, addBtn);
-  panel.appendChild(addForm);
+  const tbody = document.createElement('tbody');
+  if (rows.length === 0) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 5; td.className = 'empty-cell';
+    td.textContent = allSales.length === 0
+      ? 'No sales recorded yet.'
+      : 'No sales match the current filters.';
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+  } else {
+    rows.forEach(row => {
+      const tr = document.createElement('tr');
+      const tdP = document.createElement('td'); tdP.textContent = row.product;
+      const tdL = document.createElement('td'); tdL.textContent = row.location;
+      const tdQ = document.createElement('td'); tdQ.textContent = row.qty;
+      const tdU = document.createElement('td');
+      tdU.className = 'col-price';
+      tdU.textContent = row.price !== undefined ? row.price.toFixed(2) : '\u2014';
+      const tdR = document.createElement('td');
+      tdR.className = 'col-revenue';
+      tdR.textContent = row.revenue !== null ? row.revenue.toFixed(2) : '\u2014';
+      tr.append(tdP, tdL, tdQ, tdU, tdR);
+      tbody.appendChild(tr);
+    });
+  }
+  table.appendChild(tbody);
+
+  // Totals row
+  const tfoot = document.createElement('tfoot');
+  const totalRow = document.createElement('tr');
+  totalRow.className = 'totals-row';
+  const totalQty     = rows.reduce((s, r) => s + r.qty, 0);
+  const totalRevenue = rows.reduce((s, r) => s + (r.revenue ?? 0), 0);
+
+  const tdLabel = document.createElement('td');
+  tdLabel.colSpan = 2; tdLabel.className = 'totals-label';
+  tdLabel.textContent = `Total (${rows.length} sale${rows.length !== 1 ? 's' : ''})`;
+  const tdTQ = document.createElement('td');
+  tdTQ.className = 'totals-value'; tdTQ.textContent = totalQty;
+  const tdBlank = document.createElement('td');
+  const tdTR = document.createElement('td');
+  tdTR.className = 'totals-value col-revenue'; tdTR.textContent = totalRevenue.toFixed(2);
+  totalRow.append(tdLabel, tdTQ, tdBlank, tdTR);
+  tfoot.appendChild(totalRow);
+  table.appendChild(tfoot);
+  panel.appendChild(table);
 }
 
 export const initSalesTab = {
