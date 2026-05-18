@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sales Tracker</title>
+  <link rel="stylesheet" href="./sales-tracker.css">
+</head>
+<body>
+  <main class="app" aria-label="Sales Tracker Application">
+    <header class="app-header">
+      <h1>Sales Tracker</h1>
+    </header>
+
+    <nav class="tabs" role="tablist" aria-label="Sales Tracker Sections">
+      <button class="tab-button is-active" id="tab-product-editor" role="tab" aria-selected="true" aria-controls="panel-product-editor" data-tab="product-editor" type="button">Product Editor</button>
+      <button class="tab-button" id="tab-price-editor" role="tab" aria-selected="false" aria-controls="panel-price-editor" data-tab="price-editor" type="button">Price Editor</button>
+      <button class="tab-button" id="tab-locations" role="tab" aria-selected="false" aria-controls="panel-locations" data-tab="locations" type="button">Locations</button>
+      <button class="tab-button" id="tab-sales" role="tab" aria-selected="false" aria-controls="panel-sales" data-tab="sales" type="button">Sales</button>
+      <button class="tab-button" id="tab-reports" role="tab" aria-selected="false" aria-controls="panel-reports" data-tab="reports" type="button">Reports</button>
+    </nav>
+
+    <section class="tab-panels">
+      <article class="tab-panel is-active" id="panel-product-editor" role="tabpanel" aria-labelledby="tab-product-editor" data-panel="product-editor"></article>
+      <article class="tab-panel" id="panel-price-editor" role="tabpanel" aria-labelledby="tab-price-editor" data-panel="price-editor" hidden></article>
+      <article class="tab-panel" id="panel-locations" role="tabpanel" aria-labelledby="tab-locations" data-panel="locations" hidden></article>
+      <article class="tab-panel" id="panel-sales" role="tabpanel" aria-labelledby="tab-sales" data-panel="sales" hidden></article>
+      <article class="tab-panel" id="panel-reports" role="tabpanel" aria-labelledby="tab-reports" data-panel="reports" hidden></article>
+    </section>
+  </main>
+
+  <script type="module" src="./sales-tracker.js"></script>
+</body>
+</html>
