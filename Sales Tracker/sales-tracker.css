@@ -337,6 +337,25 @@ body {
   padding: 1.5rem;
 }
 
+/* ── Reports pivot table ─────────────────────────────────── */
+.pivot-table .pivot-num {
+  text-align: right;
+}
+.pivot-table .pivot-row-label {
+  font-weight: 500;
+}
+.pivot-table .pivot-empty {
+  color: var(--muted);
+  text-align: right;
+}
+.pivot-table .pivot-grand {
+  border-left: 2px solid var(--line);
+  font-weight: 700;
+}
+.pivot-table tfoot .pivot-grand {
+  border-left: 2px solid var(--line);
+}
+
 /* ── Sales tab: filter bar ───────────────────────────────── */
 .filter-bar {
   display: flex;
