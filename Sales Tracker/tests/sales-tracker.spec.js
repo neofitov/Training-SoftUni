@@ -126,10 +126,102 @@ test.describe('Sales Tracker', () => {
 
     const panel = page.locator('[data-panel="reports"]');
     await expect(panel).toBeVisible();
-    // Should show product and location summary data
     await expect(panel).toContainText('bread');
-    await expect(panel).toContainText('Revenue');
+    await expect(panel).toContainText('Total');
     await expect(panel).toContainText('Sofia');
+  });
+
+  test('Reports pivot shows location columns and product rows', async ({ page }) => {
+    await page.getByRole('tab', { name: 'Reports' }).click();
+    const panel = page.locator('[data-panel="reports"]');
+    // All 4 products and both locations visible
+    for (const text of ['bread', 'butter', 'eggs', 'yogurt', 'Sofia', 'Plovdiv', 'Total']) {
+      await expect(panel).toContainText(text);
+    }
+  });
+
+  test('Reports pivot shows correct revenue per cell', async ({ page }) => {
+    await page.getByRole('tab', { name: 'Reports' }).click();
+    const panel = page.locator('[data-panel="reports"]');
+    // bread in Sofia: 2 × 3.50 = 7.00
+    // butter in Plovdiv: 2 × 5.30 = 10.60
+    await expect(panel).toContainText('7.00');
+    await expect(panel).toContainText('10.60');
+  });
+
+  test('Reports pivot totals row shows per-location totals', async ({ page }) => {
+    await page.getByRole('tab', { name: 'Reports' }).click();
+    const tfoot = page.locator('[data-panel="reports"] tfoot');
+    // Sofia: bread 7.00 + eggs 2.00 + butter 5.30 = 14.30
+    // Plovdiv: eggs 1.20 + butter 10.60 + bread 3.50 = 15.30
+    await expect(tfoot).toContainText('14.30');
+    await expect(tfoot).toContainText('15.30');
+  });
+
+  test('Reports pivot grand total is correct', async ({ page }) => {
+    await page.getByRole('tab', { name: 'Reports' }).click();
+    const tfoot = page.locator('[data-panel="reports"] tfoot');
+    // 14.30 + 15.30 = 29.60
+    await expect(tfoot).toContainText('29.60');
+  });
+
+  // ─── Sales ────────────────────────────────────────────────────────────────
+
+  test('Sales tab shows all 6 sales across both locations', async ({ page }) => {
+    await page.getByRole('tab', { name: 'Sales' }).click();
+    const rows = page.locator('[data-panel="sales"] tbody tr');
+    await expect(rows).toHaveCount(6);
+  });
+
+  test('Sales tab shows correct column headers', async ({ page }) => {
+    await page.getByRole('tab', { name: 'Sales' }).click();
+    const panel = page.locator('[data-panel="sales"]');
+    for (const col of ['Product', 'Location', 'Qty', 'Unit Price', 'Revenue']) {
+      await expect(panel).toContainText(col);
+    }
+  });
+
+  test('Sales tab totals row shows total qty and revenue', async ({ page }) => {
+    await page.getByRole('tab', { name: 'Sales' }).click();
+    const tfoot = page.locator('[data-panel="sales"] tfoot');
+    // Total qty: 2+5+1+3+2+1 = 14, total revenue: 29.60
+    await expect(tfoot).toContainText('14');
+    await expect(tfoot).toContainText('29.60');
+  });
+
+  test('Sales tab filter by location shows only that location', async ({ page }) => {
+    await page.getByRole('tab', { name: 'Sales' }).click();
+    await page.locator('[data-panel="sales"] select').nth(1).selectOption('Sofia');
+    const rows = page.locator('[data-panel="sales"] tbody tr');
+    await expect(rows).toHaveCount(3);
+    // All visible rows belong to Sofia
+    await expect(page.locator('[data-panel="sales"] tbody')).not.toContainText('Plovdiv');
+  });
+
+  test('Sales tab filter by product narrows the table', async ({ page }) => {
+    await page.getByRole('tab', { name: 'Sales' }).click();
+    await page.locator('[data-panel="sales"] select').nth(0).selectOption('bread');
+    const rows = page.locator('[data-panel="sales"] tbody tr');
+    await expect(rows).toHaveCount(2); // bread in Sofia and Plovdiv
+  });
+
+  test('Sales tab clear filters restores all rows', async ({ page }) => {
+    await page.getByRole('tab', { name: 'Sales' }).click();
+    await page.locator('[data-panel="sales"] select').nth(0).selectOption('eggs');
+    await page.locator('[data-panel="sales"]').getByRole('button', { name: 'Clear filters' }).click();
+    const rows = page.locator('[data-panel="sales"] tbody tr');
+    await expect(rows).toHaveCount(6);
+  });
+
+  test('Sales tab sort by Revenue sorts the rows', async ({ page }) => {
+    await page.getByRole('tab', { name: 'Sales' }).click();
+    // Click Revenue sort button
+    await page.locator('[data-panel="sales"]').getByRole('button', { name: /Revenue/ }).click();
+    const firstCell = page.locator('[data-panel="sales"] tbody tr').first().locator('td').last();
+    const lastCell  = page.locator('[data-panel="sales"] tbody tr').last().locator('td').last();
+    const first = parseFloat(await firstCell.innerText());
+    const last  = parseFloat(await lastCell.innerText());
+    expect(first).toBeLessThanOrEqual(last); // ascending after first click
   });
 
 });
